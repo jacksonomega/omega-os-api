@@ -2,23 +2,63 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _strip_quotes(value: str) -> str:
+    cleaned = value.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ('"', "'"):
+        cleaned = cleaned[1:-1].strip()
+    return cleaned
 
 
 def parse_cors_origins(value: str | list[str]) -> list[str]:
     if isinstance(value, str):
-        cleaned = value.strip()
+        cleaned = _strip_quotes(value)
         if not cleaned:
             return []
         if cleaned.startswith("[") and cleaned.endswith("]"):
             import json
 
             parsed = json.loads(cleaned)
-            return [str(item).strip() for item in parsed if str(item).strip()]
-        return [origin.strip() for origin in cleaned.split(",") if origin.strip()]
+            return [_strip_quotes(str(item)) for item in parsed if _strip_quotes(str(item))]
+        return [_strip_quotes(origin) for origin in cleaned.split(",") if _strip_quotes(origin)]
     return value
+
+
+def normalize_async_database_url(url: str) -> str:
+    """
+    Normaliza cualquier URL de PostgreSQL (`postgres://`, `postgresql://`, `postgresql+psycopg2://`)
+    al driver `postgresql+asyncpg://` y limpia comillas o parámetros incompatibles con `asyncpg`
+    (como `sslmode=disable` que Easypanel incluye por defecto en sus Internal URLs).
+    """
+    cleaned = _strip_quotes(url)
+    if cleaned.startswith("sqlite://"):
+        return "sqlite+aiosqlite://" + cleaned[len("sqlite://") :]
+    if cleaned.startswith("postgres://"):
+        cleaned = "postgresql+asyncpg://" + cleaned[len("postgres://") :]
+    elif cleaned.startswith("postgresql://"):
+        cleaned = "postgresql+asyncpg://" + cleaned[len("postgresql://") :]
+    elif cleaned.startswith("postgresql+psycopg"):
+        _, rest = cleaned.split("://", 1)
+        cleaned = f"postgresql+asyncpg://{rest}"
+
+    parts = urlsplit(cleaned)
+    if parts.query:
+        query_params = dict(parse_qsl(parts.query, keep_blank_values=True))
+        sslmode = query_params.pop("sslmode", None)
+        query_params.pop("channel_binding", None)
+        if sslmode and "ssl" not in query_params and sslmode != "disable":
+            query_params["ssl"] = (
+                "require" if sslmode in ("require", "verify-ca", "verify-full") else sslmode
+            )
+        new_query = urlencode(query_params)
+        cleaned = urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+    return cleaned
 
 
 CorsOriginsList = Annotated[list[str], BeforeValidator(parse_cors_origins)]
@@ -37,9 +77,19 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, alias="DEBUG")
     api_v1_prefix: str = Field(default="/v1", alias="API_V1_PREFIX")
 
-    database_url: str = Field(
-        default="postgresql+asyncpg://omega:omega_super_secret_db_pass@localhost:5432/omega_os",
-        alias="DATABASE_URL",
+    # Variables individuales de PostgreSQL
+    postgres_user: str = Field(default="omega", alias="POSTGRES_USER")
+    postgres_password: str = Field(
+        default="omega_super_secret_db_pass", alias="POSTGRES_PASSWORD"
+    )
+    postgres_host: str = Field(default="db", alias="POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
+    postgres_db: str = Field(default="omega_os", alias="POSTGRES_DB")
+
+    database_url: str = Field(default="", alias="DATABASE_URL")
+    sqlite_fallback_url: str = Field(
+        default="sqlite+aiosqlite:///./omega_os_fallback.db",
+        alias="SQLITE_FALLBACK_URL",
     )
 
     cors_origins: CorsOriginsList = Field(
@@ -100,6 +150,26 @@ class Settings(BaseSettings):
         default="https://api.openai.com/v1",
         alias="OPENAI_BASE_URL",
     )
+
+    @model_validator(mode="after")
+    def build_and_normalize_database_url(self) -> Settings:
+        self.jwt_secret_key = _strip_quotes(self.jwt_secret_key)
+        self.partner_jackson_password = _strip_quotes(self.partner_jackson_password)
+        self.partner_yassin_password = _strip_quotes(self.partner_yassin_password)
+        self.n8n_secret_api_key = _strip_quotes(self.n8n_secret_api_key)
+        self.n8n_webhook_secret = _strip_quotes(self.n8n_webhook_secret)
+        self.openai_api_key = _strip_quotes(self.openai_api_key)
+
+        if not self.database_url or not _strip_quotes(self.database_url):
+            self.database_url = (
+                f"postgresql+asyncpg://{_strip_quotes(self.postgres_user)}:"
+                f"{_strip_quotes(self.postgres_password)}"
+                f"@{_strip_quotes(self.postgres_host)}:{self.postgres_port}/"
+                f"{_strip_quotes(self.postgres_db)}"
+            )
+        else:
+            self.database_url = normalize_async_database_url(self.database_url)
+        return self
 
 
 @lru_cache

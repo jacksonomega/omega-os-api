@@ -32,6 +32,26 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
+def switch_to_sqlite_fallback() -> AsyncEngine:
+    """
+    Cambia en caliente el motor y la factoría de sesiones a SQLite asíncrono
+    si el contenedor se despliega en Easypanel (Dockerfile) sin un servicio PostgreSQL vinculado aún.
+    """
+    global engine, AsyncSessionLocal
+    engine = create_async_engine(
+        settings.sqlite_fallback_url,
+        echo=settings.debug,
+        future=True,
+    )
+    AsyncSessionLocal = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    return engine
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:

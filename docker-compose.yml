@@ -24,9 +24,15 @@ services:
     container_name: omega-os-api
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-omega}:${POSTGRES_PASSWORD:-omega_super_secret_db_pass}@db:5432/${POSTGRES_DB:-omega_os}
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-omega}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omega_super_secret_db_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-omega_os}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-omega}:${POSTGRES_PASSWORD:-omega_super_secret_db_pass}@db:5432/${POSTGRES_DB:-omega_os}}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
