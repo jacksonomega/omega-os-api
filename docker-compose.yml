@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: omega-os-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omega}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omega_super_secret_db_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-omega_os}
+    volumes:
+      - omega_pg_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omega} -d ${POSTGRES_DB:-omega_os}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omega-os-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-omega}:${POSTGRES_PASSWORD:-omega_super_secret_db_pass}@db:5432/${POSTGRES_DB:-omega_os}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  omega_pg_data:
