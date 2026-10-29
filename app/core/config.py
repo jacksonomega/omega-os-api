@@ -97,6 +97,7 @@ class Settings(BaseSettings):
             "https://os.omega-studio.tech",
             "https://omega-studio.tech",
             "http://localhost:4200",
+            "http://localhost:4300",
         ],
         alias="CORS_ORIGINS",
     )
@@ -154,6 +155,14 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def build_and_normalize_database_url(self) -> Settings:
         self.jwt_secret_key = _strip_quotes(self.jwt_secret_key)
+        for required_origin in (
+            "https://os.omega-studio.tech",
+            "https://omega-studio.tech",
+            "http://localhost:4200",
+            "http://localhost:4300",
+        ):
+            if required_origin not in self.cors_origins:
+                self.cors_origins.append(required_origin)
         self.partner_jackson_password = _strip_quotes(self.partner_jackson_password)
         self.partner_yassin_password = _strip_quotes(self.partner_yassin_password)
         self.n8n_secret_api_key = _strip_quotes(self.n8n_secret_api_key)

@@ -8,6 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
@@ -109,19 +110,28 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Authorization",
-        "Content-Type",
-        "Accept",
-        "Origin",
-        "X-Omega-Client",
-        "X-Omega-Api-Key",
-    ],
+    allow_headers=["*"],
 )
 
 app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+
+
+@app.get("/", include_in_schema=False)
+async def root_redirect() -> RedirectResponse:
+    return RedirectResponse(url=f"{settings.api_v1_prefix}/docs")
+
+
+@app.get("/docs", include_in_schema=False)
+async def docs_redirect() -> RedirectResponse:
+    return RedirectResponse(url=f"{settings.api_v1_prefix}/docs")
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_redirect() -> RedirectResponse:
+    return RedirectResponse(url=f"{settings.api_v1_prefix}/redoc")
 
 
 @app.get("/health", tags=["Health"])
