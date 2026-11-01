@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -19,7 +20,7 @@ class N8nWebhookDispatcher:
     """
     Despachador asíncrono de webhooks salientes hacia n8n (https://n8n.omega-studio.tech/).
     Firma las peticiones con `X-Omega-Webhook-Secret` y `X-Omega-Signature-256`,
-    con timeout de 5s y ejecución no bloqueante mediante `BackgroundTasks`.
+    con timeout de 5s y ejecución no bloqueante.
     """
 
     @staticmethod
@@ -63,15 +64,25 @@ class N8nWebhookDispatcher:
         client_payload: dict[str, Any],
         closed_by_partner: str,
     ) -> None:
-        url = settings.n8n_webhook_client_closed
-        if not url:
-            return
         payload = {
             "client": client_payload,
             "calculatedMonthlyQuotaEur": client_payload.get("monthlyQuotaEur"),
             "closedBy": closed_by_partner,
         }
-        background_tasks.add_task(cls._post_webhook, url, "client.closed", payload)
+        if settings.n8n_webhook_client_closed:
+            background_tasks.add_task(
+                cls._post_webhook,
+                settings.n8n_webhook_client_closed,
+                "client.closed",
+                payload,
+            )
+        if settings.n8n_webhook_notifications:
+            background_tasks.add_task(
+                cls._post_webhook,
+                settings.n8n_webhook_notifications,
+                "client.closed",
+                payload,
+            )
 
     @classmethod
     def dispatch_margin_alert(
@@ -82,9 +93,6 @@ class N8nWebhookDispatcher:
         variable_expenses: float,
         gross_margin_percent: float,
     ) -> None:
-        url = settings.n8n_webhook_margin_alert
-        if not url:
-            return
         payload = {
             "mrr": round(mrr, 2),
             "oneOff": round(one_off, 2),
@@ -92,7 +100,20 @@ class N8nWebhookDispatcher:
             "grossMarginPercent": round(gross_margin_percent, 2),
             "thresholdPercent": 80.0,
         }
-        background_tasks.add_task(cls._post_webhook, url, "margin.alert", payload)
+        if settings.n8n_webhook_margin_alert:
+            background_tasks.add_task(
+                cls._post_webhook,
+                settings.n8n_webhook_margin_alert,
+                "margin.alert",
+                payload,
+            )
+        if settings.n8n_webhook_notifications:
+            background_tasks.add_task(
+                cls._post_webhook,
+                settings.n8n_webhook_notifications,
+                "margin.alert",
+                payload,
+            )
 
     @classmethod
     def dispatch_urgent_task(
@@ -101,11 +122,30 @@ class N8nWebhookDispatcher:
         task_payload: dict[str, Any],
         assigned_partner: str,
     ) -> None:
-        url = settings.n8n_webhook_urgent_task
-        if not url:
-            return
         payload = {
             "task": task_payload,
             "assignee": assigned_partner,
         }
-        background_tasks.add_task(cls._post_webhook, url, "task.urgent", payload)
+        if settings.n8n_webhook_urgent_task:
+            background_tasks.add_task(
+                cls._post_webhook,
+                settings.n8n_webhook_urgent_task,
+                "task.urgent",
+                payload,
+            )
+
+    @classmethod
+    def dispatch_mutation_notification_fire_and_forget(
+        cls,
+        event_name: str,
+        payload: dict[str, Any],
+    ) -> None:
+        if not settings.n8n_webhook_notifications:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                cls._post_webhook(settings.n8n_webhook_notifications, event_name, payload)
+            )
+        except RuntimeError:
+            pass

@@ -1,0 +1,122 @@
+{
+  "name": "Omega OS — Notificaciones Automáticas a Grupo de WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "omega-os-notifications",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e1a2b3c4-1111-4000-8000-000000000001",
+      "name": "Webhook Omega OS",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "omega-os-whatsapp-notifier"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst event = body.event || 'system.update';\nconst timestamp = body.timestamp || new Date().toISOString();\nconst data = body.data || body;\n\nconst emojiByModule = {\n  'Tareas': '✅',\n  'Notas y Wiki': '📝',\n  'Proyectos': '🚀',\n  'CRM — Clientes': '🎉',\n  'CRM — Leads': '🎯',\n  'CRM — Entrevistas': '🎙️',\n  'Contactos': '📇',\n  'Contabilidad': '💶',\n  'Progreso — OKRs': '📈',\n  'Progreso — Hitos': '🏆',\n  'Cerebro Omega — Prompts': '🧠'\n};\n\nlet whatsappMessage = '';\n\nif (event === 'client.closed' && data.client) {\n  const c = data.client;\n  whatsappMessage = [\n    `🎉 *¡NUEVO CLIENTE CERRADO EN OMEGA OS!*`,\n    ``,\n    `🏢 *Empresa:* ${c.companyName} (${c.cif})`,\n    `👥 *Empleados:* ${c.employees}`,\n    `💶 *Cuota MRR:* ${c.monthlyQuotaEur} €/mes`,\n    `🛠️ *Setup inicial:* ${c.setupFeeEur} €`,\n    `👤 *Cerrado por:* ${data.closedBy || 'Socio'}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else if (event === 'margin.alert') {\n  whatsappMessage = [\n    `⚠️ *ALERTA DE MARGEN BRUTO (<80%)*`,\n    ``,\n    `📉 *Margen actual:* ${data.grossMarginPercent}%`,\n    `💶 *MRR:* ${data.mrr} € | *Únicos:* ${data.oneOff} €`,\n    `💸 *Gastos variables:* ${data.variableExpenses} €`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else if (event === 'task.urgent' && data.task) {\n  const t = data.task;\n  whatsappMessage = [\n    `🚨 *NUEVA TAREA URGENTE — OMEGA OS*`,\n    ``,\n    `📌 *Título:* ${t.title}`,\n    `👤 *Asignada a:* ${data.assignee}`,\n    `📅 *Fecha límite:* ${t.dueDate || 'Sin fecha'}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else {\n  const moduleName = data.module || 'Omega OS';\n  const icon = emojiByModule[moduleName] || '🔔';\n  const actor = data.actor || 'Omega OS';\n  const summary = data.summary || `Evento: ${event}`;\n  const details = data.details ? `\\nℹ️ _${data.details}_` : '';\n\n  whatsappMessage = [\n    `${icon} *Omega OS — ${moduleName}*`,\n    `👤 *Por:* ${actor}`,\n    `📌 *${summary}*${details}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n}\n\nreturn [\n  {\n    json: {\n      event,\n      module: data.module || 'Omega OS',\n      actor: data.actor || 'Omega OS',\n      whatsappMessage,\n      raw: body\n    }\n  }\n];"
+      },
+      "id": "e1a2b3c4-2222-4000-8000-000000000002",
+      "name": "Formatear Mensaje WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://TU_INSTANCIA_WHATSAPP_O_EVOLUTION_API/message/sendText/TU_INSTANCIA",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "TU_API_KEY_DE_WHATSAPP"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"120363000000000000@g.us\",\n  \"text\": {{ JSON.stringify($json.whatsappMessage) }}\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "e1a2b3c4-3333-4000-8000-000000000003",
+      "name": "Enviar a Grupo WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"event\": \"{{ $('Formatear Mensaje WhatsApp').item.json.event }}\"\n}",
+        "options": {}
+      },
+      "id": "e1a2b3c4-4444-4000-8000-000000000004",
+      "name": "Responder 200 OK a FastAPI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Omega OS": {
+      "main": [
+        [
+          {
+            "node": "Formatear Mensaje WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Mensaje WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Grupo WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a Grupo WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 OK a FastAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -140,6 +140,10 @@ class Settings(BaseSettings):
         default="",
         alias="N8N_WEBHOOK_URGENT_TASK",
     )
+    n8n_webhook_notifications: str = Field(
+        default="https://n8n.omega-studio.tech/webhook/omega-os-notifications",
+        alias="N8N_WEBHOOK_NOTIFICATIONS",
+    )
     n8n_webhook_timeout_seconds: float = Field(
         default=5.0,
         alias="N8N_WEBHOOK_TIMEOUT_SECONDS",
@@ -167,6 +171,7 @@ class Settings(BaseSettings):
         self.partner_yassin_password = _strip_quotes(self.partner_yassin_password)
         self.n8n_secret_api_key = _strip_quotes(self.n8n_secret_api_key)
         self.n8n_webhook_secret = _strip_quotes(self.n8n_webhook_secret)
+        self.n8n_webhook_notifications = _strip_quotes(self.n8n_webhook_notifications)
         self.openai_api_key = _strip_quotes(self.openai_api_key)
 
         if not self.database_url or not _strip_quotes(self.database_url):
