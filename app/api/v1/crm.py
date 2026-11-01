@@ -13,6 +13,7 @@ from app.models.entities import (
     FieldInterviewModel,
     RevenueRecordModel,
     generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -83,8 +84,9 @@ async def create_interview(
     db: AsyncSession = Depends(get_db),
 ) -> list[FieldInterview] | FieldInterview:
     now_iso = payload.created_at or utc_now_iso()
+    int_id = await resolve_unique_id(db, FieldInterviewModel, payload.id, "int")
     interview = FieldInterviewModel(
-        id=payload.id or generate_prefixed_id("int"),
+        id=int_id,
         business_name=payload.business_name.strip(),
         contact_person=payload.contact_person.strip(),
         employees=max(1, payload.employees),
@@ -184,8 +186,9 @@ async def create_lead(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[CrmLead] | CrmLead:
+    lead_id = await resolve_unique_id(db, CrmLeadModel, payload.id, "lead")
     lead = CrmLeadModel(
-        id=payload.id or generate_prefixed_id("lead"),
+        id=lead_id,
         company=payload.company.strip(),
         contact=payload.contact.strip(),
         employees=max(1, payload.employees),
@@ -263,9 +266,10 @@ async def create_client(
     employees = max(1, payload.employees)
     calculated_quota = calculate_libera_monthly_quota(employees)
     signed_at = payload.signed_at or utc_now_iso()
+    cli_id = await resolve_unique_id(db, ClosedClientModel, payload.id, "cli")
 
     client = ClosedClientModel(
-        id=payload.id or generate_prefixed_id("cli"),
+        id=cli_id,
         company_name=payload.company_name.strip(),
         cif=payload.cif.strip().upper(),
         employees=employees,

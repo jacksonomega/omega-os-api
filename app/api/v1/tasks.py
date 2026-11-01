@@ -10,6 +10,7 @@ from app.models.entities import (
     ActivityEventModel,
     PartnerTaskModel,
     generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -76,8 +77,9 @@ async def create_task(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[PartnerTask] | PartnerTask:
+    tsk_id = await resolve_unique_id(db, PartnerTaskModel, payload.id, "tsk")
     task = PartnerTaskModel(
-        id=payload.id or generate_prefixed_id("tsk"),
+        id=tsk_id,
         title=payload.title.strip(),
         column=payload.column,
         priority=payload.priority,

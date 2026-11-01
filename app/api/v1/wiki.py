@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import ActorContext, get_current_actor
-from app.models.entities import WikiNoteModel, generate_prefixed_id, utc_now_iso
+from app.models.entities import WikiNoteModel, resolve_unique_id, utc_now_iso
 from app.schemas.domain import WikiNote, WikiNoteCreate, WikiNotePatch, WikiNoteUpdate
 
 router = APIRouter(prefix="/wiki/notes", tags=["Wiki"])
@@ -38,8 +38,9 @@ async def create_note(
     actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[WikiNote] | WikiNote:
+    note_id = await resolve_unique_id(db, WikiNoteModel, payload.id, "note")
     note = WikiNoteModel(
-        id=payload.id or generate_prefixed_id("note"),
+        id=note_id,
         title=payload.title.strip(),
         type=payload.type,
         icon=payload.icon.strip() or "file",
@@ -69,20 +70,29 @@ async def update_note_in_body(
     result = await db.execute(select(WikiNoteModel).where(WikiNoteModel.id == payload.id))
     note = result.scalar_one_or_none()
     if note is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Nota '{payload.id}' no encontrada.",
+        note = WikiNoteModel(
+            id=payload.id,
+            title=payload.title.strip(),
+            type=payload.type,
+            icon=payload.icon.strip() or "file",
+            pinned=payload.pinned,
+            tags=[str(t).strip() for t in payload.tags if str(t).strip()],
+            linked_entity=payload.linked_entity.strip(),
+            markdown=payload.markdown,
+            last_author=payload.last_author or actor.partner_id,
+            updated_at=payload.updated_at or utc_now_iso(),
         )
-
-    note.title = payload.title.strip()
-    note.type = payload.type
-    note.icon = payload.icon.strip() or "file"
-    note.pinned = payload.pinned
-    note.tags = [str(t).strip() for t in payload.tags if str(t).strip()]
-    note.linked_entity = payload.linked_entity.strip()
-    note.markdown = payload.markdown
-    note.last_author = payload.last_author or actor.partner_id
-    note.updated_at = payload.updated_at or utc_now_iso()
+        db.add(note)
+    else:
+        note.title = payload.title.strip()
+        note.type = payload.type
+        note.icon = payload.icon.strip() or "file"
+        note.pinned = payload.pinned
+        note.tags = [str(t).strip() for t in payload.tags if str(t).strip()]
+        note.linked_entity = payload.linked_entity.strip()
+        note.markdown = payload.markdown
+        note.last_author = payload.last_author or actor.partner_id
+        note.updated_at = payload.updated_at or utc_now_iso()
 
     await db.commit()
     await db.refresh(note)

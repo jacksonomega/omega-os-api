@@ -10,7 +10,7 @@ from app.core.seed import ensure_default_shortcuts
 from app.models.entities import (
     ActivityEventModel,
     QuickShortcutModel,
-    generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -90,8 +90,9 @@ async def create_activity(
     actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[ActivityEvent] | ActivityEvent:
+    event_id = await resolve_unique_id(db, ActivityEventModel, payload.id, "act")
     event = ActivityEventModel(
-        id=payload.id or generate_prefixed_id("act"),
+        id=event_id,
         at=payload.at or utc_now_iso(),
         actor=payload.actor or actor.display_name,
         module=payload.module,

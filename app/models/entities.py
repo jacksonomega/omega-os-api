@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, Text, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -11,6 +12,27 @@ from app.core.database import Base
 
 def generate_prefixed_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}"
+
+
+async def resolve_unique_id(
+    db: AsyncSession,
+    model_cls: type[Base],
+    requested_id: str | None,
+    prefix: str,
+) -> str:
+    """
+    Si el frontend Angular envía un ID secuencial (ej. `rev-4`, `tsk-2`) que ya existe
+    en PostgreSQL (por haberse borrado un elemento intermedio antes), genera un ID único
+    para evitar `UniqueViolationError`.
+    """
+    if not requested_id or not requested_id.strip():
+        return generate_prefixed_id(prefix)
+    clean_id = requested_id.strip()
+    id_col = getattr(model_cls, "id")
+    existing = await db.execute(select(id_col).where(id_col == clean_id).limit(1))
+    if existing.scalar_one_or_none() is not None:
+        return generate_prefixed_id(prefix)
+    return clean_id
 
 
 def utc_now_iso() -> str:

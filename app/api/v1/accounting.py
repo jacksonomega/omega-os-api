@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import ActorContext, get_current_actor
 from app.models.entities import (
+    ClosedClientModel,
     ExpenseRecordModel,
     RevenueRecordModel,
     generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -49,25 +51,43 @@ async def sync_ledger(
 
     await db.execute(delete(RevenueRecordModel))
     await db.execute(delete(ExpenseRecordModel))
+    await db.flush()
 
+    client_ids_res = await db.execute(select(ClosedClientModel.id))
+    valid_client_ids = set(client_ids_res.scalars().all())
+
+    seen_rev_ids: set[str] = set()
     for rev in payload.revenues:
+        candidate_id = (rev.id or "").strip()
+        if not candidate_id or candidate_id in seen_rev_ids:
+            candidate_id = generate_prefixed_id("rev")
+        seen_rev_ids.add(candidate_id)
+
+        safe_client_id = rev.client_id if (rev.client_id and rev.client_id in valid_client_ids) else None
+
         db.add(
             RevenueRecordModel(
-                id=rev.id or generate_prefixed_id("rev"),
+                id=candidate_id,
                 concept=rev.concept.strip(),
                 client=rev.client.strip(),
                 kind=rev.kind,
                 division=rev.division,
                 amount_eur=float(rev.amount_eur),
                 date=rev.date or utc_now_iso(),
-                client_id=rev.client_id,
+                client_id=safe_client_id,
             )
         )
 
+    seen_exp_ids: set[str] = set()
     for exp in payload.expenses:
+        candidate_id = (exp.id or "").strip()
+        if not candidate_id or candidate_id in seen_exp_ids:
+            candidate_id = generate_prefixed_id("exp")
+        seen_exp_ids.add(candidate_id)
+
         db.add(
             ExpenseRecordModel(
-                id=exp.id or generate_prefixed_id("exp"),
+                id=candidate_id,
                 concept=exp.concept.strip(),
                 provider=exp.provider.strip(),
                 kind=exp.kind,
@@ -87,15 +107,25 @@ async def create_revenue(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> Ledger | RevenueRecord:
+    rev_id = await resolve_unique_id(db, RevenueRecordModel, payload.id, "rev")
+
+    safe_client_id: str | None = None
+    if payload.client_id:
+        client_check = await db.execute(
+            select(ClosedClientModel.id).where(ClosedClientModel.id == payload.client_id)
+        )
+        if client_check.scalar_one_or_none() is not None:
+            safe_client_id = payload.client_id
+
     record = RevenueRecordModel(
-        id=payload.id or generate_prefixed_id("rev"),
+        id=rev_id,
         concept=payload.concept.strip(),
         client=payload.client.strip(),
         kind=payload.kind,
         division=payload.division,
         amount_eur=float(payload.amount_eur),
         date=payload.date or utc_now_iso(),
-        client_id=payload.client_id,
+        client_id=safe_client_id,
     )
     db.add(record)
     await db.commit()
@@ -131,8 +161,9 @@ async def create_expense(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> Ledger | ExpenseRecord:
+    exp_id = await resolve_unique_id(db, ExpenseRecordModel, payload.id, "exp")
     record = ExpenseRecordModel(
-        id=payload.id or generate_prefixed_id("exp"),
+        id=exp_id,
         concept=payload.concept.strip(),
         provider=payload.provider.strip(),
         kind=payload.kind,

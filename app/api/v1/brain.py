@@ -9,7 +9,7 @@ from app.core.security import ActorContext, get_current_actor
 from app.models.entities import (
     PromptEntryModel,
     PromptVersionModel,
-    generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -59,7 +59,7 @@ async def create_prompt(
     db: AsyncSession = Depends(get_db),
 ) -> list[PromptEntry] | PromptEntry:
     now_iso = utc_now_iso()
-    prompt_id = payload.id or generate_prefixed_id("prm")
+    prompt_id = await resolve_unique_id(db, PromptEntryModel, payload.id, "prm")
     author = payload.author or actor.partner_id
 
     prompt_entry = PromptEntryModel(

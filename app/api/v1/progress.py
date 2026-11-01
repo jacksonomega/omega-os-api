@@ -9,7 +9,7 @@ from app.core.security import ActorContext, get_current_actor
 from app.models.entities import (
     MilestoneModel,
     OkrModel,
-    generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -52,8 +52,9 @@ async def create_okr(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[Okr] | Okr:
+    okr_id = await resolve_unique_id(db, OkrModel, payload.id, "okr")
     okr = OkrModel(
-        id=payload.id or generate_prefixed_id("okr"),
+        id=okr_id,
         title=payload.title.strip(),
         kind=payload.kind,
         target=float(payload.target),
@@ -126,8 +127,9 @@ async def create_milestone(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[Milestone] | Milestone:
+    ms_id = await resolve_unique_id(db, MilestoneModel, payload.id, "ms")
     milestone = MilestoneModel(
-        id=payload.id or generate_prefixed_id("ms"),
+        id=ms_id,
         title=payload.title.strip(),
         date=payload.date or utc_now_iso(),
     )

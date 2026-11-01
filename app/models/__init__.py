@@ -18,6 +18,7 @@ from app.models.entities import (
     RevenueRecordModel,
     WikiNoteModel,
     generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 
@@ -41,5 +42,6 @@ __all__ = [
     "RevenueRecordModel",
     "WikiNoteModel",
     "generate_prefixed_id",
+    "resolve_unique_id",
     "utc_now_iso",
 ]

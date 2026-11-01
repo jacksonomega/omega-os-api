@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import ActorContext, get_current_actor
-from app.models.entities import ContactModel, generate_prefixed_id, utc_now_iso
+from app.models.entities import ContactModel, resolve_unique_id, utc_now_iso
 from app.schemas.domain import Contact, ContactCreate, ContactPatch, ContactUpdate
 
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
@@ -55,8 +55,9 @@ async def upsert_or_create_contact(
         await db.flush()
         return existing
 
+    ct_id = await resolve_unique_id(db, ContactModel, payload.id, "ct")
     contact = ContactModel(
-        id=payload.id or generate_prefixed_id("ct"),
+        id=ct_id,
         name=payload.name.strip(),
         company=payload.company.strip(),
         role=payload.role.strip(),

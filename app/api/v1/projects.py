@@ -10,6 +10,7 @@ from app.models.entities import (
     ChecklistItemModel,
     OmegaProjectModel,
     generate_prefixed_id,
+    resolve_unique_id,
     utc_now_iso,
 )
 from app.schemas.domain import (
@@ -55,7 +56,7 @@ async def create_project(
     _actor: ActorContext = Depends(get_current_actor),
     db: AsyncSession = Depends(get_db),
 ) -> list[OmegaProject] | OmegaProject:
-    project_id = payload.id or generate_prefixed_id("prj")
+    project_id = await resolve_unique_id(db, OmegaProjectModel, payload.id, "prj")
     project = OmegaProjectModel(
         id=project_id,
         name=payload.name.strip(),
@@ -67,10 +68,15 @@ async def create_project(
     )
 
     if payload.checklist and len(payload.checklist) > 0:
+        seen_chk_ids: set[str] = set()
         for idx, item in enumerate(payload.checklist):
+            chk_id = await resolve_unique_id(db, ChecklistItemModel, item.id, "chk")
+            if chk_id in seen_chk_ids:
+                chk_id = generate_prefixed_id("chk")
+            seen_chk_ids.add(chk_id)
             project.checklist.append(
                 ChecklistItemModel(
-                    id=item.id or generate_prefixed_id("chk"),
+                    id=chk_id,
                     project_id=project_id,
                     label=item.label.strip(),
                     done=bool(item.done),
@@ -177,8 +183,9 @@ async def add_checklist_item(
     )
     next_position = int(max_pos_res.scalar_one()) + 1
 
+    chk_id = await resolve_unique_id(db, ChecklistItemModel, payload.id, "chk")
     new_item = ChecklistItemModel(
-        id=payload.id or generate_prefixed_id("chk"),
+        id=chk_id,
         project_id=project_id,
         label=payload.label.strip(),
         done=False,
