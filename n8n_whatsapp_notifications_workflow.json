@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst event = body.event || 'system.update';\nconst timestamp = body.timestamp || new Date().toISOString();\nconst data = body.data || body;\n\nconst emojiByModule = {\n  'Tareas': '✅',\n  'Notas y Wiki': '📝',\n  'Proyectos': '🚀',\n  'CRM — Clientes': '🎉',\n  'CRM — Leads': '🎯',\n  'CRM — Entrevistas': '🎙️',\n  'Contactos': '📇',\n  'Contabilidad': '💶',\n  'Progreso — OKRs': '📈',\n  'Progreso — Hitos': '🏆',\n  'Cerebro Omega — Prompts': '🧠'\n};\n\nlet whatsappMessage = '';\n\nif (event === 'client.closed' && data.client) {\n  const c = data.client;\n  whatsappMessage = [\n    `🎉 *¡NUEVO CLIENTE CERRADO EN OMEGA OS!*`,\n    ``,\n    `🏢 *Empresa:* ${c.companyName} (${c.cif})`,\n    `👥 *Empleados:* ${c.employees}`,\n    `💶 *Cuota MRR:* ${c.monthlyQuotaEur} €/mes`,\n    `🛠️ *Setup inicial:* ${c.setupFeeEur} €`,\n    `👤 *Cerrado por:* ${data.closedBy || 'Socio'}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else if (event === 'margin.alert') {\n  whatsappMessage = [\n    `⚠️ *ALERTA DE MARGEN BRUTO (<80%)*`,\n    ``,\n    `📉 *Margen actual:* ${data.grossMarginPercent}%`,\n    `💶 *MRR:* ${data.mrr} € | *Únicos:* ${data.oneOff} €`,\n    `💸 *Gastos variables:* ${data.variableExpenses} €`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else if (event === 'task.urgent' && data.task) {\n  const t = data.task;\n  whatsappMessage = [\n    `🚨 *NUEVA TAREA URGENTE — OMEGA OS*`,\n    ``,\n    `📌 *Título:* ${t.title}`,\n    `👤 *Asignada a:* ${data.assignee}`,\n    `📅 *Fecha límite:* ${t.dueDate || 'Sin fecha'}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n} else {\n  const moduleName = data.module || 'Omega OS';\n  const icon = emojiByModule[moduleName] || '🔔';\n  const actor = data.actor || 'Omega OS';\n  const summary = data.summary || `Evento: ${event}`;\n  const details = data.details ? `\\nℹ️ _${data.details}_` : '';\n\n  whatsappMessage = [\n    `${icon} *Omega OS — ${moduleName}*`,\n    `👤 *Por:* ${actor}`,\n    `📌 *${summary}*${details}`,\n    `🕒 _${timestamp}_`\n  ].join('\\n');\n}\n\nreturn [\n  {\n    json: {\n      event,\n      module: data.module || 'Omega OS',\n      actor: data.actor || 'Omega OS',\n      whatsappMessage,\n      raw: body\n    }\n  }\n];"
+        "jsCode": "const NL = String.fromCharCode(10);\nconst body = $input.first().json.body || $input.first().json;\nconst event = body.event || 'system.update';\nconst rawTs = body.timestamp || new Date().toISOString();\nconst data = body.data || body;\n\nconst partnerMap = {\n  jackson: 'Jackson Almeida',\n  yassin: 'Yassin Khamlichi',\n  n8n: 'n8n Automatización'\n};\n\nfunction prettyPartner(val) {\n  if (!val) return '';\n  const clean = String(val).trim();\n  return partnerMap[clean.toLowerCase()] || clean;\n}\n\nfunction formatMadridTime(isoStr) {\n  try {\n    const d = new Date(isoStr);\n    return new Intl.DateTimeFormat('es-ES', {\n      timeZone: 'Europe/Madrid',\n      day: '2-digit',\n      month: 'short',\n      hour: '2-digit',\n      minute: '2-digit'\n    }).format(d).replace(',', ' ·');\n  } catch (e) {\n    return isoStr;\n  }\n}\n\nconst fechaHora = formatMadridTime(rawTs);\nconst actor = prettyPartner(data.actor || data.closedBy || 'Omega OS');\nlet lines = [];\n\nif (event === 'margin.alert') {\n  lines = [\n    '⚠️ *Alerta financiera · Margen Bruto < 80%*',\n    '',\n    `📉 Margen actual: *${data.grossMarginPercent}%*`,\n    `• MRR activo: ${data.mrr} €/mes`,\n    `• Ingresos únicos: ${data.oneOff} €`,\n    `• Gastos variables: ${data.variableExpenses} €`,\n    '',\n    `_Omega OS · ${fechaHora}_`\n  ];\n} else if (event === 'client.closed' && data.client) {\n  const c = data.client;\n  lines = [\n    '🎉 *¡Nuevo cliente cerrado!* · _Omega Libera_',\n    '',\n    `*${c.companyName}* (${c.cif})`,\n    `• Empleados: ${c.employees}`,\n    `• Cuota mensual: *${c.monthlyQuotaEur} €/mes* (MRR)`,\n    `• Setup inicial: *${c.setupFeeEur} €*`,\n    '',\n    `_Cerrado por ${actor} · ${fechaHora}_`\n  ];\n} else if (data.headline && data.title) {\n  const icon = data.icon || '🔔';\n  const mod = data.module || 'Omega OS';\n  const bullets = Array.isArray(data.bullets) ? data.bullets : [];\n\n  lines.push(`${icon} *${data.headline}* · _${mod}_`);\n  lines.push('');\n  lines.push(`*${data.title}*`);\n  for (const b of bullets) {\n    lines.push(`• ${b}`);\n  }\n  lines.push('');\n  lines.push(`_Por ${actor} · ${fechaHora}_`);\n} else {\n  // Compatibilidad limpia incluso con payloads anteriores de la API\n  const p = data.payload || {};\n  const mod = data.module || 'Omega OS';\n  const rawSummary = String(data.summary || '').replace(/^(Creado|Actualizado|Eliminado):\\s*/i, '');\n  const actionVerb = data.action === 'POST' ? 'Nuevo registro' : (data.action === 'DELETE' ? 'Eliminado' : 'Actualizado');\n\n  const iconMap = {\n    'Tareas': '📋',\n    'Notas y Wiki': '📝',\n    'Proyectos': '🚀',\n    'CRM — Clientes': '🎉',\n    'CRM — Leads': '🎯',\n    'CRM — Entrevistas': '🎙️',\n    'Contactos': '📇',\n    'Contabilidad': '💶'\n  };\n  const icon = iconMap[mod] || '🔔';\n  const prioIcons = { Urgente: '🔴 Urgente', Alta: '🟠 Alta', Media: '🔵 Media', Baja: '⚪ Baja' };\n\n  lines.push(`${icon} *${actionVerb}* · _${mod}_`);\n  lines.push('');\n  lines.push(`*${p.title || p.name || p.companyName || p.company || p.businessName || p.concept || rawSummary}*`);\n\n  if (p.column) lines.push(`• Estado: *${p.column}*`);\n  if (p.priority) lines.push(`• Prioridad: ${prioIcons[p.priority] || p.priority}`);\n  if (p.assignee) lines.push(`• Responsable: ${prettyPartner(p.assignee)}`);\n  if (p.dueDate) lines.push(`• Fecha límite: ${p.dueDate}`);\n  if (p.client) lines.push(`• Cliente: ${p.client}`);\n  if (p.division) lines.push(`• División: ${p.division}`);\n  if (p.type) lines.push(`• Tipo: ${p.type}`);\n  if (p.stage) lines.push(`• Etapa: *${p.stage}*`);\n  if (p.amountEur !== undefined) lines.push(`• Importe: *${p.amountEur} €*`);\n\n  lines.push('');\n  lines.push(`_Por ${actor} · ${fechaHora}_`);\n}\n\nconst whatsappMessage = lines.join(NL);\n\nreturn [\n  {\n    json: {\n      event,\n      module: data.module || 'Omega OS',\n      actor,\n      whatsappMessage\n    }\n  }\n];"
       },
       "id": "e1a2b3c4-2222-4000-8000-000000000002",
       "name": "Formatear Mensaje WhatsApp",
@@ -41,16 +41,23 @@
             {
               "name": "apikey",
               "value": "TU_API_KEY_DE_WHATSAPP"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"120363000000000000@g.us\",\n  \"text\": {{ JSON.stringify($json.whatsappMessage) }}\n}",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "120363000000000000@g.us"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.whatsappMessage }}"
+            }
+          ]
+        },
         "options": {
           "timeout": 10000
         }

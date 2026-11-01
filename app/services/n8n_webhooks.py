@@ -76,13 +76,6 @@ class N8nWebhookDispatcher:
                 "client.closed",
                 payload,
             )
-        if settings.n8n_webhook_notifications:
-            background_tasks.add_task(
-                cls._post_webhook,
-                settings.n8n_webhook_notifications,
-                "client.closed",
-                payload,
-            )
 
     @classmethod
     def dispatch_margin_alert(
