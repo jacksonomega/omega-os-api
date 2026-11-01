@@ -48,11 +48,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     - El registro de caja inicial (`openingCashEur = 0`).
     """
     masked_db = _mask_url(settings.database_url)
-    logger.info("Iniciando Omega OS API (%s) -> DB configurada: %s", settings.app_env, masked_db)
+    logger.info("Iniciando Omega OS API (%s) -> Conectando a PostgreSQL: %s", settings.app_env, masked_db)
 
-    is_default_unconfigured_host = "@db:5432/" in settings.database_url or "@localhost:5432/" in settings.database_url
-    max_attempts = 2 if is_default_unconfigured_host else 5
+    max_attempts = 10
     connected = False
+    last_error: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -62,35 +62,31 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             async with db_module.AsyncSessionLocal() as session:
                 await seed_initial_data(session)
 
-            logger.info("PostgreSQL conectado y seed inicial verificado correctamente.")
+            logger.info("PostgreSQL conectado exitosamente y tablas sincronizadas en: %s", masked_db)
             connected = True
             break
         except Exception as exc:
+            last_error = exc
             logger.warning(
-                "Intento %d/%d de conexión a PostgreSQL (%s) no disponible: %s",
+                "Intento %d/%d conectando a PostgreSQL (%s) falló: %s: %s",
                 attempt,
                 max_attempts,
                 masked_db,
+                type(exc).__name__,
                 exc,
             )
             if attempt < max_attempts:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.0)
 
     if not connected:
-        logger.warning(
-            "PostgreSQL (%s) no accesible. Activando base de datos local embebida (%s) "
-            "para que el contenedor arranque sin errores en Easypanel. "
-            "Cuando crees el servicio Postgres en Easypanel, añade DATABASE_URL en la pestaña Environment.",
+        logger.critical(
+            "ERROR FATAL: No se pudo conectar a PostgreSQL (%s) tras %d intentos. "
+            "Revisa la variable DATABASE_URL en Easypanel.",
             masked_db,
-            settings.sqlite_fallback_url,
+            max_attempts,
         )
-        await db_module.engine.dispose()
-        db_module.switch_to_sqlite_fallback()
-        async with db_module.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        async with db_module.AsyncSessionLocal() as session:
-            await seed_initial_data(session)
-        logger.info("Base de datos embebida de respaldo inicializada correctamente.")
+        if last_error:
+            raise last_error
 
     yield
     await db_module.engine.dispose()
