@@ -523,6 +523,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         if last_error:
             raise last_error
 
+    # Asegurar tablas y columnas nuevas
+    async with db_module.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        try:
+            from sqlalchemy import text
+            await conn.execute(
+                text("ALTER TABLE wiki_notes ADD COLUMN IF NOT EXISTS section_id VARCHAR(64) DEFAULT 'sec_general';")
+            )
+        except Exception:
+            pass
+
     yield
     await db_module.engine.dispose()
     logger.info("Omega OS API detenida limpiamente.")

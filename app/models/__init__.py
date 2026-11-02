@@ -17,6 +17,7 @@ from app.models.entities import (
     QuickShortcutModel,
     RevenueRecordModel,
     WikiNoteModel,
+    WikiSectionModel,
     generate_prefixed_id,
     resolve_unique_id,
     utc_now_iso,

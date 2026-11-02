@@ -226,6 +226,18 @@ class PartnerTaskModel(Base):
 
 
 # 6. Notas y Wiki
+class WikiSectionModel(Base):
+    __tablename__ = "wiki_sections"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
+    icon: Mapped[str] = mapped_column(String(64), nullable=False, default="folder", server_default="folder")
+    color: Mapped[str] = mapped_column(String(32), nullable=False, default="indigo", server_default="indigo")
+    order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=utc_now_iso)
+
+
 class WikiNoteModel(Base):
     __tablename__ = "wiki_notes"
 
@@ -236,6 +248,7 @@ class WikiNoteModel(Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False, default="Otro")
+    section_id: Mapped[str] = mapped_column(String(64), nullable=False, default="sec_general", server_default="sec_general")
     icon: Mapped[str] = mapped_column(String(64), nullable=False, default="file")
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

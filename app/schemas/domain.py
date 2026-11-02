@@ -331,12 +331,41 @@ class PartnerTaskPatch(CamelModel):
 
 
 # ==============================================================================
-# 6. Notas y Wiki (Estilo Notion)
+# 6. Notas y Wiki (Estilo Notion y por Secciones)
 # ==============================================================================
+class NoteSection(CamelModel):
+    id: str
+    name: str
+    description: str = ""
+    icon: str = "folder"
+    color: str = "indigo"
+    order: int = 0
+    created_at: str
+
+
+class NoteSectionCreate(CamelModel):
+    id: str | None = None
+    name: str
+    description: str = ""
+    icon: str = "folder"
+    color: str = "indigo"
+    order: int = 0
+
+
+class NoteSectionUpdate(CamelModel):
+    id: str
+    name: str
+    description: str = ""
+    icon: str = "folder"
+    color: str = "indigo"
+    order: int = 0
+
+
 class WikiNote(CamelModel):
     id: str
     title: str
     type: NoteType
+    section_id: str = "sec_general"
     icon: str
     pinned: bool
     tags: list[str]
@@ -350,6 +379,7 @@ class WikiNoteCreate(CamelModel):
     id: str | None = None
     title: str
     type: NoteType = "Otro"
+    section_id: str | None = None
     icon: str = "file"
     pinned: bool = False
     tags: list[str] = Field(default_factory=list)
@@ -363,6 +393,7 @@ class WikiNoteUpdate(CamelModel):
     id: str
     title: str
     type: NoteType = "Otro"
+    section_id: str | None = None
     icon: str = "file"
     pinned: bool = False
     tags: list[str] = Field(default_factory=list)
@@ -376,6 +407,7 @@ class WikiNotePatch(CamelModel):
     pinned: bool | None = None
     title: str | None = None
     type: NoteType | None = None
+    section_id: str | None = None
     icon: str | None = None
     tags: list[str] | None = None
     linked_entity: str | None = None
