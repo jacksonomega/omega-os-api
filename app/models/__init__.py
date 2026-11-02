@@ -16,6 +16,7 @@ from app.models.entities import (
     PromptVersionModel,
     QuickShortcutModel,
     RevenueRecordModel,
+    WikiMindMapModel,
     WikiNoteModel,
     WikiSectionModel,
     generate_prefixed_id,

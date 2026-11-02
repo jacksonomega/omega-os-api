@@ -415,6 +415,57 @@ class WikiNotePatch(CamelModel):
     last_author: PartnerId | None = None
 
 
+class MindMapBoard(CamelModel):
+    id: str
+    title: str
+    description: str = ""
+    category: str = "Mapa Mental"
+    icon: str = "layers"
+    pinned: bool = False
+    linked_entity: str = ""
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    last_author: PartnerId
+    updated_at: str
+
+
+class MindMapBoardCreate(CamelModel):
+    id: str | None = None
+    title: str
+    description: str = ""
+    category: str = "Mapa Mental"
+    icon: str = "layers"
+    pinned: bool = False
+    linked_entity: str = ""
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    last_author: PartnerId | None = None
+    updated_at: str | None = None
+
+
+class MindMapBoardUpdate(CamelModel):
+    id: str
+    title: str
+    description: str = ""
+    category: str = "Mapa Mental"
+    icon: str = "layers"
+    pinned: bool = False
+    linked_entity: str = ""
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    last_author: PartnerId | None = None
+    updated_at: str | None = None
+
+
+class MindMapBoardPatch(CamelModel):
+    pinned: bool | None = None
+    title: str | None = None
+    description: str | None = None
+    category: str | None = None
+    nodes: list[dict[str, Any]] | None = None
+    edges: list[dict[str, Any]] | None = None
+
+
 # ==============================================================================
 # 7. Progresos y Logros
 # ==============================================================================

@@ -6,8 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import ActorContext, get_current_actor
-from app.models.entities import WikiNoteModel, WikiSectionModel, resolve_unique_id, utc_now_iso
+from app.models.entities import (
+    WikiMindMapModel,
+    WikiNoteModel,
+    WikiSectionModel,
+    resolve_unique_id,
+    utc_now_iso,
+)
 from app.schemas.domain import (
+    MindMapBoard,
+    MindMapBoardCreate,
+    MindMapBoardPatch,
+    MindMapBoardUpdate,
     NoteSection,
     NoteSectionCreate,
     NoteSectionUpdate,
@@ -19,6 +29,7 @@ from app.schemas.domain import (
 
 router = APIRouter(prefix="/wiki/notes", tags=["Wiki"])
 sections_router = APIRouter(prefix="/wiki/sections", tags=["Wiki"])
+mindmaps_router = APIRouter(prefix="/wiki/mindmaps", tags=["Wiki"])
 
 DEFAULT_SECTIONS: list[dict[str, object]] = [
     {
@@ -361,3 +372,156 @@ async def delete_section(
         await db.delete(sec)
         await db.commit()
     return await _list_sections(db)
+
+
+# ==============================================================================
+# 3. ESQUEMAS Y MAPAS MENTALES WIKI
+# ==============================================================================
+
+async def _list_mindmaps(db: AsyncSession) -> list[MindMapBoard]:
+    result = await db.execute(
+        select(WikiMindMapModel).order_by(
+            WikiMindMapModel.pinned.desc(),
+            WikiMindMapModel.updated_at.desc(),
+            WikiMindMapModel.id.desc(),
+        )
+    )
+    return [MindMapBoard.model_validate(r) for r in result.scalars().all()]
+
+
+@mindmaps_router.get("", response_model=list[MindMapBoard])
+async def get_mindmaps(
+    _actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db),
+) -> list[MindMapBoard]:
+    return await _list_mindmaps(db)
+
+
+@mindmaps_router.post("", response_model=list[MindMapBoard] | MindMapBoard)
+async def create_mindmap(
+    payload: MindMapBoardCreate,
+    return_entity: bool = Query(default=False),
+    actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db),
+) -> list[MindMapBoard] | MindMapBoard:
+    board_id = await resolve_unique_id(db, WikiMindMapModel, payload.id, "mmap")
+    board = WikiMindMapModel(
+        id=board_id,
+        title=payload.title.strip() or "Esquema sin título",
+        description=payload.description.strip(),
+        category=payload.category.strip() or "Mapa Mental",
+        icon=payload.icon.strip() or "layers",
+        pinned=payload.pinned,
+        linked_entity=payload.linked_entity.strip(),
+        nodes=payload.nodes,
+        edges=payload.edges,
+        last_author=payload.last_author or actor.partner_id,
+        updated_at=payload.updated_at or utc_now_iso(),
+    )
+    db.add(board)
+    await db.commit()
+    await db.refresh(board)
+
+    if return_entity:
+        return MindMapBoard.model_validate(board)
+    return await _list_mindmaps(db)
+
+
+@mindmaps_router.put("", response_model=list[MindMapBoard] | MindMapBoard)
+async def update_mindmap(
+    payload: MindMapBoardUpdate,
+    return_entity: bool = Query(default=False),
+    actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db),
+) -> list[MindMapBoard] | MindMapBoard:
+    result = await db.execute(select(WikiMindMapModel).where(WikiMindMapModel.id == payload.id))
+    board = result.scalar_one_or_none()
+    if board is None:
+        board = WikiMindMapModel(
+            id=payload.id,
+            title=payload.title.strip() or "Esquema sin título",
+            description=payload.description.strip(),
+            category=payload.category.strip() or "Mapa Mental",
+            icon=payload.icon.strip() or "layers",
+            pinned=payload.pinned,
+            linked_entity=payload.linked_entity.strip(),
+            nodes=payload.nodes,
+            edges=payload.edges,
+            last_author=payload.last_author or actor.partner_id,
+            updated_at=payload.updated_at or utc_now_iso(),
+        )
+        db.add(board)
+    else:
+        board.title = payload.title.strip() or "Esquema sin título"
+        board.description = payload.description.strip()
+        board.category = payload.category.strip() or "Mapa Mental"
+        board.icon = payload.icon.strip() or "layers"
+        board.pinned = payload.pinned
+        board.linked_entity = payload.linked_entity.strip()
+        board.nodes = payload.nodes
+        board.edges = payload.edges
+        board.last_author = payload.last_author or actor.partner_id
+        board.updated_at = payload.updated_at or utc_now_iso()
+
+    await db.commit()
+    await db.refresh(board)
+
+    if return_entity:
+        return MindMapBoard.model_validate(board)
+    return await _list_mindmaps(db)
+
+
+@mindmaps_router.patch("/{id}", response_model=list[MindMapBoard] | MindMapBoard)
+async def patch_mindmap(
+    id: str,
+    payload: MindMapBoardPatch | None = Body(default=None),
+    return_entity: bool = Query(default=False),
+    actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db),
+) -> list[MindMapBoard] | MindMapBoard:
+    result = await db.execute(select(WikiMindMapModel).where(WikiMindMapModel.id == id))
+    board = result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Esquema '{id}' no encontrado.",
+        )
+
+    if payload is None or not payload.model_fields_set:
+        board.pinned = not board.pinned
+    else:
+        if payload.pinned is not None:
+            board.pinned = payload.pinned
+        if payload.title is not None:
+            board.title = payload.title.strip()
+        if payload.description is not None:
+            board.description = payload.description.strip()
+        if payload.category is not None:
+            board.category = payload.category.strip()
+        if payload.nodes is not None:
+            board.nodes = payload.nodes
+        if payload.edges is not None:
+            board.edges = payload.edges
+        board.last_author = actor.partner_id
+
+    board.updated_at = utc_now_iso()
+    await db.commit()
+    await db.refresh(board)
+
+    if return_entity:
+        return MindMapBoard.model_validate(board)
+    return await _list_mindmaps(db)
+
+
+@mindmaps_router.delete("/{id}", response_model=list[MindMapBoard])
+async def delete_mindmap(
+    id: str,
+    _actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db),
+) -> list[MindMapBoard]:
+    result = await db.execute(select(WikiMindMapModel).where(WikiMindMapModel.id == id))
+    board = result.scalar_one_or_none()
+    if board is not None:
+        await db.delete(board)
+        await db.commit()
+    return await _list_mindmaps(db)

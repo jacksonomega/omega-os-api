@@ -258,6 +258,26 @@ class WikiNoteModel(Base):
     updated_at: Mapped[str] = mapped_column(String(64), nullable=False, index=True, default=utc_now_iso)
 
 
+class WikiMindMapModel(Base):
+    __tablename__ = "wiki_mindmaps"
+
+    id: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+        default=lambda: generate_prefixed_id("mmap"),
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
+    category: Mapped[str] = mapped_column(String(64), nullable=False, default="Mapa Mental", server_default="Mapa Mental")
+    icon: Mapped[str] = mapped_column(String(64), nullable=False, default="layers", server_default="layers")
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    linked_entity: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    nodes: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    edges: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    last_author: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(64), nullable=False, index=True, default=utc_now_iso)
+
+
 # 7. Progresos y Logros
 class OkrModel(Base):
     __tablename__ = "progress_okrs"
