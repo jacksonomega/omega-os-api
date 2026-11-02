@@ -48,6 +48,15 @@ class PartnerUser(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
+class PartnerPresenceModel(Base):
+    __tablename__ = "partner_presence"
+
+    member_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="inactivo")
+    updated_at: Mapped[str] = mapped_column(String(64), nullable=False, default=utc_now_iso)
+
+
 # 1. Launchpad
 class QuickShortcutModel(Base):
     __tablename__ = "launchpad_shortcuts"

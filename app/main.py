@@ -434,6 +434,29 @@ def _classify_mutation(
             "bullets": bullets,
         }
 
+    if "/presence" in path:
+        module = "Presencia"
+        status_val = str(merged.get("status") or "activo").lower()
+        member_id = str(merged.get("memberId") or merged.get("member_id") or "jackson").lower()
+        member_name = _partner_display(member_id)
+        is_active = status_val == "activo"
+        icon = "🟢" if is_active else "⚪"
+        headline = "Admin Activo" if is_active else "Admin Inactivo"
+        title = f"{member_name} está ahora {'ACTIVO' if is_active else 'INACTIVO'}"
+        bullets = [
+            f"Estado: {'Activo' if is_active else 'Inactivo'}",
+            f"Socio: {member_name}",
+            "Panel: Omega OS (os.omega-studio.tech)",
+        ]
+        return {
+            "event": "admin.presence",
+            "icon": icon,
+            "module": module,
+            "headline": headline,
+            "title": title,
+            "bullets": bullets,
+        }
+
     return {
         "event": f"system.{method.lower()}",
         "icon": "🔔",

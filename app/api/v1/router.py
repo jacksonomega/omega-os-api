@@ -10,6 +10,7 @@ from app.api.v1 import (
     crm,
     launchpad,
     n8n_integrations,
+    presence,
     progress,
     projects,
     tasks,
@@ -28,4 +29,5 @@ api_v1_router.include_router(wiki.router)
 api_v1_router.include_router(progress.router)
 api_v1_router.include_router(accounting.router)
 api_v1_router.include_router(brain.router)
+api_v1_router.include_router(presence.router)
 api_v1_router.include_router(n8n_integrations.router)

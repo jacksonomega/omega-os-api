@@ -579,3 +579,19 @@ class DailyDigestResponse(CamelModel):
     finance: DailyDigestFinanceMetrics
     active_leads: list[CrmLead]
     active_contacts: list[Contact]
+
+
+AdminPresenceStatus = Literal["activo", "inactivo"]
+
+
+class PartnerPresenceItem(CamelModel):
+    member_id: str
+    name: str
+    status: AdminPresenceStatus
+    updated_at: str
+
+
+class PresenceUpdateRequest(CamelModel):
+    member_id: str | None = None
+    status: AdminPresenceStatus
+
