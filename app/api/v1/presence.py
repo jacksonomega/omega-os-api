@@ -8,7 +8,6 @@ from app.core.database import get_db
 from app.core.security import ActorContext, get_current_partner, PARTNER_DIRECTORY
 from app.models.entities import PartnerPresenceModel, utc_now_iso
 from app.schemas.domain import PartnerPresenceItem, PresenceUpdateRequest
-from app.services.n8n_webhooks import N8nWebhookDispatcher
 
 router = APIRouter(prefix="/presence", tags=["Presencia Admin"])
 
@@ -96,28 +95,6 @@ async def update_presence(
         record.updated_at = now_iso
 
     await db.commit()
-
-    # Disparar notificación a n8n
-    is_active = payload.status == "activo"
-    status_label = "ACTIVO" if is_active else "INACTIVO"
-    N8nWebhookDispatcher.dispatch_mutation_notification_fire_and_forget(
-        event_name="admin.presence",
-        payload={
-            "icon": "🟢" if is_active else "⚪",
-            "module": "Presencia",
-            "headline": "Admin Activo" if is_active else "Admin Inactivo",
-            "title": f"{member_name} está ahora {status_label}",
-            "bullets": [
-                f"Estado: {status_label.capitalize()}",
-                f"Socio: {member_name}",
-                "Panel: Omega OS (os.omega-studio.tech)",
-            ],
-            "actor": member_name,
-            "status": payload.status,
-            "action": "POST",
-            "path": "/v1/presence",
-        },
-    )
 
     records = await _ensure_presence_records(db)
     return [
