@@ -219,6 +219,7 @@ class PartnerTaskModel(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     column: Mapped[str] = mapped_column(String(32), nullable=False, default="Pendiente")
     priority: Mapped[str] = mapped_column(String(32), nullable=False, default="Media")
+    area: Mapped[str] = mapped_column(String(32), nullable=False, default="Técnico", server_default="Técnico")
     assignee: Mapped[str] = mapped_column(String(32), nullable=False)
     tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     due_date: Mapped[str] = mapped_column(String(32), nullable=False, default="")

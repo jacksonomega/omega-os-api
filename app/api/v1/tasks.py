@@ -18,6 +18,7 @@ from app.schemas.domain import (
     PartnerTask,
     PartnerTaskCreate,
     PartnerTaskPatch,
+    TaskArea,
     TaskPriority,
 )
 from app.services.n8n_webhooks import N8nWebhookDispatcher
@@ -29,6 +30,7 @@ async def _list_tasks(
     db: AsyncSession,
     assignee: PartnerId | None = None,
     priority: TaskPriority | None = None,
+    area: TaskArea | None = None,
     due_before: str | None = None,
     pending_only: bool = False,
 ) -> list[PartnerTask]:
@@ -38,6 +40,8 @@ async def _list_tasks(
         stmt = stmt.where(PartnerTaskModel.assignee == assignee)
     if priority is not None:
         stmt = stmt.where(PartnerTaskModel.priority == priority)
+    if area is not None:
+        stmt = stmt.where(PartnerTaskModel.area == area)
     if due_before is not None and due_before.strip():
         stmt = stmt.where(
             PartnerTaskModel.due_date != "",
@@ -55,6 +59,7 @@ async def _list_tasks(
 async def get_tasks(
     assignee: PartnerId | None = Query(default=None),
     priority: TaskPriority | None = Query(default=None),
+    area: TaskArea | None = Query(default=None),
     due_before: str | None = Query(default=None),
     pending_only: bool = Query(default=False),
     _actor: ActorContext = Depends(get_current_actor),
@@ -64,6 +69,7 @@ async def get_tasks(
         db=db,
         assignee=assignee,
         priority=priority,
+        area=area,
         due_before=due_before,
         pending_only=pending_only,
     )
@@ -83,6 +89,7 @@ async def create_task(
         title=payload.title.strip(),
         column=payload.column,
         priority=payload.priority,
+        area=payload.area,
         assignee=payload.assignee,
         tags=[str(t).strip() for t in payload.tags if str(t).strip()],
         due_date=payload.due_date.strip(),
@@ -128,6 +135,8 @@ async def patch_task(
         task.column = payload.column
     if payload.priority is not None:
         task.priority = payload.priority
+    if payload.area is not None:
+        task.area = payload.area
     if payload.due_date is not None:
         task.due_date = payload.due_date.strip()
     if payload.title is not None:

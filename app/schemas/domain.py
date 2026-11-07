@@ -37,6 +37,8 @@ TaskColumn = Literal["Pendiente", "En curso", "Hecho"]
 
 TaskPriority = Literal["Urgente", "Alta", "Media", "Baja"]
 
+TaskArea = Literal["Técnico", "Marketing"]
+
 NoteType = Literal[
     "Acta",
     "Guion",
@@ -304,6 +306,7 @@ class PartnerTask(CamelModel):
     title: str
     column: TaskColumn
     priority: TaskPriority
+    area: TaskArea = "Técnico"
     assignee: PartnerId
     tags: list[str]
     due_date: str
@@ -315,6 +318,7 @@ class PartnerTaskCreate(CamelModel):
     title: str
     column: TaskColumn = "Pendiente"
     priority: TaskPriority = "Media"
+    area: TaskArea = "Técnico"
     assignee: PartnerId = "jackson"
     tags: list[str] = Field(default_factory=list)
     due_date: str = ""
@@ -324,6 +328,7 @@ class PartnerTaskCreate(CamelModel):
 class PartnerTaskPatch(CamelModel):
     column: TaskColumn | None = None
     priority: TaskPriority | None = None
+    area: TaskArea | None = None
     due_date: str | None = None
     title: str | None = None
     assignee: PartnerId | None = None

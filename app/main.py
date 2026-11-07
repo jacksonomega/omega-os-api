@@ -113,6 +113,7 @@ def _classify_mutation(
         title = str(merged.get("title") or f"Tarea {target_id}").strip()
         col = str(merged.get("column") or "")
         prio = str(merged.get("priority") or "")
+        area = str(merged.get("area") or "")
         assignee = _partner_display(merged.get("assignee"))
         due = str(merged.get("dueDate") or "").strip()
 
@@ -128,6 +129,8 @@ def _classify_mutation(
 
         bullets: list[str] = []
         if method != "DELETE":
+            if area:
+                bullets.append(f"Área: *{area}*")
             if col:
                 bullets.append(f"Estado: *{col}*")
             if prio:
@@ -530,6 +533,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             from sqlalchemy import text
             await conn.execute(
                 text("ALTER TABLE wiki_notes ADD COLUMN IF NOT EXISTS section_id VARCHAR(64) DEFAULT 'sec_general';")
+            )
+            await conn.execute(
+                text("ALTER TABLE partner_tasks ADD COLUMN IF NOT EXISTS area VARCHAR(32) DEFAULT 'Técnico';")
             )
         except Exception:
             pass
